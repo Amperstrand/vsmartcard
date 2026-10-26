@@ -435,6 +435,9 @@ int vicc_poweron(struct vicc_ctx *ctx) {
 
     if (ctx && lock(ctx->io_lock)) {
         r = sendToVICC(ctx, VPCD_CTRL_LEN, &i);
+        /* VPCD_CTRL_ON gets no response from vpicc per the protocol —
+         * nothing to consume. (If a VICC does respond, the stale data
+         * will be consumed by the next getatr; harmless.) */
         unlock(ctx->io_lock);
     }
 
@@ -455,10 +458,16 @@ int vicc_poweroff(struct vicc_ctx *ctx) {
 
 int vicc_reset(struct vicc_ctx *ctx) {
     unsigned char i = VPCD_CTRL_RESET;
+    unsigned char *atr = NULL;
     int r = 0;
 
     if (ctx && lock(ctx->io_lock)) {
         r = sendToVICC(ctx, VPCD_CTRL_LEN, &i);
+        if (r > 0) {
+            /* consume the ATR response — same desync risk as poweron */
+            r = recvFromVICC(ctx, &atr);
+            free(atr);
+        }
         unlock(ctx->io_lock);
     }
 
